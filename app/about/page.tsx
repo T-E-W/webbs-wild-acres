@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function AboutPage() {
   return (
@@ -75,51 +76,27 @@ export default function AboutPage() {
       <section className="bg-white pb-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {[
-              "Barn & Loft",
-              "Pasture & Fencing",
-              "The Wrap-Around Porch",
-            ].map((caption) => (
-              <div key={caption} className="flex flex-col gap-3">
-                <div
-                  className="w-full rounded-xl flex items-center justify-center"
-                  style={{
-                    backgroundColor: "#e8e4dc",
-                    border: "1px dashed #c5bfb2",
-                    height: "220px",
-                  }}
-                >
-                  <div className="text-center px-4">
-                    <svg
-                      className="w-8 h-8 mx-auto mb-2 opacity-40"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={1.4}
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 3h18M3 21h18M9 3v18"
-                      />
-                    </svg>
-                    <p
-                      className="text-sm font-semibold"
-                      style={{ color: "var(--color-brown-body)", fontFamily: "var(--font-lato), sans-serif", opacity: 0.6 }}
-                    >
-                      Photo coming soon
-                    </p>
-                  </div>
-                </div>
-                <p
-                  className="text-sm text-center font-medium"
-                  style={{ color: "var(--color-brown-body)", fontFamily: "var(--font-lato), sans-serif" }}
-                >
-                  {caption}
-                </p>
+            {/* Barn photo */}
+            <div className="flex flex-col gap-3">
+              <div className="w-full rounded-xl overflow-hidden" style={{ height: "220px", position: "relative" }}>
+                <Image src="/images/barn_and_loft.webp" alt="Barn & Loft" fill style={{ objectFit: "cover" }} />
               </div>
-            ))}
+              <p className="text-sm text-center font-medium" style={{ color: "var(--color-brown-body)", fontFamily: "var(--font-lato), sans-serif" }}>Barn & Loft</p>
+            </div>
+            {/* Placeholder - Pasture */}
+            <div className="flex flex-col gap-3">
+              <div className="w-full rounded-xl flex items-center justify-center" style={{ backgroundColor: "#e8e4dc", border: "1px dashed #c5bfb2", height: "220px" }}>
+                <p className="text-sm font-semibold" style={{ color: "var(--color-brown-body)", opacity: 0.6 }}>Photo coming soon</p>
+              </div>
+              <p className="text-sm text-center font-medium" style={{ color: "var(--color-brown-body)", fontFamily: "var(--font-lato), sans-serif" }}>Pasture & Fencing</p>
+            </div>
+            {/* Placeholder - Porch */}
+            <div className="flex flex-col gap-3">
+              <div className="w-full rounded-xl flex items-center justify-center" style={{ backgroundColor: "#e8e4dc", border: "1px dashed #c5bfb2", height: "220px" }}>
+                <p className="text-sm font-semibold" style={{ color: "var(--color-brown-body)", opacity: 0.6 }}>Photo coming soon</p>
+              </div>
+              <p className="text-sm text-center font-medium" style={{ color: "var(--color-brown-body)", fontFamily: "var(--font-lato), sans-serif" }}>The Wrap-Around Porch</p>
+            </div>
           </div>
         </div>
       </section>
