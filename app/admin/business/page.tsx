@@ -247,7 +247,7 @@ export default function BusinessCenterPage() {
         >
           Modules
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
           {/* Sheep Tracker — active */}
           <Link href="/admin/business/sheep" className="card-rustic p-6 block hover:shadow-lg transition-shadow group">
             <div className="flex items-center gap-3 mb-3">
@@ -264,6 +264,30 @@ export default function BusinessCenterPage() {
               style={{ fontFamily: "var(--font-lato), Georgia, serif" }}
             >
               Track your herd, log expenses and income, and view profit/loss analysis.
+            </p>
+            <div className="mt-4">
+              <span className="inline-block bg-[#4a7c3f] text-white text-xs px-3 py-1 rounded-full uppercase tracking-wider font-semibold">
+                Open
+              </span>
+            </div>
+          </Link>
+
+          {/* Livestock Manager — active */}
+          <Link href="/admin/business/livestock" className="card-rustic p-6 block hover:shadow-lg transition-shadow group">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-3xl">🐾</span>
+              <h3
+                className="text-lg font-bold text-[var(--color-farm-brown)] group-hover:text-[#4a7c3f] transition-colors"
+                style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
+              >
+                Livestock Manager
+              </h3>
+            </div>
+            <p
+              className="text-sm text-[var(--color-farm-brown-dark)]"
+              style={{ fontFamily: "var(--font-lato), Georgia, serif" }}
+            >
+              Manage multi-species livestock groups with flexible pricing — per head, by class, live weight, or hanging weight.
             </p>
             <div className="mt-4">
               <span className="inline-block bg-[#4a7c3f] text-white text-xs px-3 py-1 rounded-full uppercase tracking-wider font-semibold">
@@ -332,6 +356,9 @@ export default function BusinessCenterPage() {
           <div className="flex flex-wrap gap-3">
             <Link href="/admin/business/sheep" className="btn-rustic text-sm py-2 px-4">
               🐑 Sheep Tracker
+            </Link>
+            <Link href="/admin/business/livestock" className="btn-rustic text-sm py-2 px-4">
+              🐾 Livestock Manager
             </Link>
             <Link href="/admin/business/sheep#expenses" className="btn-rustic text-sm py-2 px-4">
               💸 Log Expense
