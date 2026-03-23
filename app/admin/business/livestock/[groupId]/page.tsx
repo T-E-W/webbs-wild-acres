@@ -47,7 +47,7 @@ interface LivestockGroup {
   totalHeadCount: number;
   totalValue: number;
   avgPricePerHead: number;
-  status?: "active" | "sold" | "partial" | "closed";
+  status?: "active" | "sold" | "partial" | "closed" | "archived";
   trackingMode?: "individual" | "flock";
   createdAt: string;
   updatedAt: string;
@@ -654,12 +654,16 @@ function TabExpenses({
   animals,
   expenses,
   onSave,
+  onGroupUpdate,
+  onShowToast,
   defaultOpen,
 }: {
   group: LivestockGroup;
   animals: Animal[];
   expenses: GroupExpense[];
   onSave: (updated: GroupExpense[]) => void;
+  onGroupUpdate: (updated: LivestockGroup) => void;
+  onShowToast: (msg: string) => void;
   defaultOpen?: boolean;
 }) {
   const [showForm, setShowForm] = useState(defaultOpen || false);
@@ -711,15 +715,36 @@ function TabExpenses({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-4 text-sm">
-          <span className="text-[#c0392b] font-semibold">Actual: {fmt(actualTotal)}</span>
-          <span className="text-[#c8922a]">Projected: {fmt(projTotal)}</span>
-          <span className="text-gray-500">Per Head: {fmt(perHead)}</span>
+      {group.status === "archived" ? (
+        <div className="bg-gray-100 border border-gray-300 rounded-xl p-4 flex items-start gap-3">
+          <span className="text-xl flex-shrink-0">🗄️</span>
+          <div className="flex-1">
+            <p className="text-sm text-gray-700 font-medium">This group is archived (fully sold). Expenses cannot be added. You can unarchive this group if a sale was entered incorrectly.</p>
+            <button
+              onClick={() => {
+                const updated = { ...group, status: "active" as const, updatedAt: new Date().toISOString() };
+                onGroupUpdate(updated);
+                onShowToast("Group unarchived. You can now add expenses and record additional sales.");
+              }}
+              className="mt-2 text-xs font-semibold bg-[#4a7c3f] text-white px-3 py-1.5 rounded-lg hover:bg-[#3d6835] transition-colors"
+            >
+              Unarchive Group
+            </button>
+          </div>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-rustic text-sm px-4 py-2">+ Log Expense</button>
-      </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <div className="flex gap-4 text-sm">
+            <span className="text-[#c0392b] font-semibold">Actual: {fmt(actualTotal)}</span>
+            <span className="text-[#c8922a]">Projected: {fmt(projTotal)}</span>
+            <span className="text-gray-500">Per Head: {fmt(perHead)}</span>
+          </div>
+          <button onClick={() => setShowForm(true)} className="btn-rustic text-sm px-4 py-2">+ Log Expense</button>
+        </div>
+      )}
 
+      {group.status !== "archived" && (
+        <>
       {showForm && (
         <div className="card-rustic p-5 border-2 border-[#c8922a]/40 space-y-4">
           <h4 className="font-bold text-[#3d2b1f]">Log Expense</h4>
@@ -748,6 +773,8 @@ function TabExpenses({
             <button onClick={() => setShowForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancel</button>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {sorted.length === 0 ? (
@@ -783,6 +810,8 @@ function TabSales({
   sales,
   onSave,
   onAnimalsUpdate,
+  onGroupUpdate,
+  onShowToast,
   defaultOpen,
 }: {
   group: LivestockGroup;
@@ -790,6 +819,8 @@ function TabSales({
   sales: SaleRecord[];
   onSave: (updated: SaleRecord[]) => void;
   onAnimalsUpdate: (updated: Animal[]) => void;
+  onGroupUpdate: (updated: LivestockGroup) => void;
+  onShowToast: (msg: string) => void;
   defaultOpen?: boolean;
 }) {
   const [showForm, setShowForm] = useState(defaultOpen || false);
@@ -818,9 +849,12 @@ function TabSales({
     { value: "flat", label: "Flat Total" },
   ];
 
+  const soldHeadCount = sales.filter((s) => s.isActual).reduce((sum, s) => sum + s.headCount, 0);
+  const remainingHeadCount = Math.max(0, group.totalHeadCount - soldHeadCount);
+
   const calcTotal = (): number => {
     const price = Number(priceAmount);
-    const hc = selectedAnimalIds.length > 0 ? selectedAnimalIds.length : (Number(headCountManual) || group.totalHeadCount);
+    const hc = selectedAnimalIds.length > 0 ? selectedAnimalIds.length : (Number(headCountManual) || remainingHeadCount);
     const weight = Number(avgWeight);
     if (pricingMode === "perHead") return price * hc;
     if (pricingMode === "perCwt") return (price / 100) * weight * hc;
@@ -834,7 +868,8 @@ function TabSales({
 
   const saveSale = () => {
     if (!priceAmount) return;
-    const hc = selectedAnimalIds.length > 0 ? selectedAnimalIds.length : (Number(headCountManual) || group.totalHeadCount);
+    const rawHc = selectedAnimalIds.length > 0 ? selectedAnimalIds.length : (Number(headCountManual) || remainingHeadCount);
+    const hc = Math.min(rawHc, remainingHeadCount);
     const sale: SaleRecord = {
       id: generateId(),
       groupId: group.id,
@@ -853,12 +888,25 @@ function TabSales({
       isActual,
       notes: saleNotes || undefined,
     };
-    onSave([...sales, sale]);
+    const updatedSales = [...sales, sale];
+    onSave(updatedSales);
 
     // Mark selected animals as sold
     if (selectedAnimalIds.length > 0) {
       const statusDate = date;
       onAnimalsUpdate(animals.map((a) => selectedAnimalIds.includes(a.id) ? { ...a, status: "sold" as const, statusDate } : a));
+    }
+
+    // Auto-archive if fully sold (only for actual sales)
+    if (isActual) {
+      const newSoldCount = updatedSales.filter((s) => s.isActual).reduce((sum, s) => sum + s.headCount, 0);
+      const newRemaining = Math.max(0, group.totalHeadCount - newSoldCount);
+      if (newRemaining <= 0) {
+        onGroupUpdate({ ...group, status: "archived", updatedAt: new Date().toISOString() });
+        onShowToast("All animals sold — group has been archived.");
+      } else if (newSoldCount > 0 && group.status !== "archived") {
+        onGroupUpdate({ ...group, status: "partial", updatedAt: new Date().toISOString() });
+      }
     }
 
     setShowForm(false);
@@ -895,7 +943,24 @@ function TabSales({
             <div><label className="block text-xs font-semibold text-[#3d2b1f] mb-1">Price Amount ($)</label><input type="number" min="0" step="0.01" value={priceAmount} onChange={(e) => setPriceAmount(e.target.value)} className="w-full border border-[#c8922a]/40 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a7c3f]" /></div>
             {needsWeight && <div><label className="block text-xs font-semibold text-[#3d2b1f] mb-1">Avg Weight (lbs/head)</label><input type="number" min="0" step="0.1" value={avgWeight} onChange={(e) => setAvgWeight(e.target.value)} className="w-full border border-[#c8922a]/40 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a7c3f]" /></div>}
             {pricingMode === "perLbHanging" && <div><label className="block text-xs font-semibold text-[#3d2b1f] mb-1">Yield %</label><input type="number" min="0" max="100" value={yieldPct} onChange={(e) => setYieldPct(e.target.value)} className="w-full border border-[#c8922a]/40 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a7c3f]" /></div>}
-            {selectedAnimalIds.length === 0 && <div><label className="block text-xs font-semibold text-[#3d2b1f] mb-1">Head Count (if not selecting individuals)</label><input type="number" min="1" value={headCountManual} onChange={(e) => setHeadCountManual(e.target.value)} placeholder={`Default: ${group.totalHeadCount}`} className="w-full border border-[#c8922a]/40 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a7c3f]" /></div>}
+            {selectedAnimalIds.length === 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-[#3d2b1f] mb-1">Head Count (if not selecting individuals)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={remainingHeadCount}
+                  value={headCountManual}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setHeadCountManual(v > remainingHeadCount ? String(remainingHeadCount) : e.target.value);
+                  }}
+                  placeholder={`Default: ${remainingHeadCount}`}
+                  className="w-full border border-[#c8922a]/40 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a7c3f]"
+                />
+                <p className="text-xs text-gray-500 mt-0.5">{remainingHeadCount} head remaining</p>
+              </div>
+            )}
             <div><label className="block text-xs font-semibold text-[#3d2b1f] mb-1">Buyer</label><input type="text" value={buyer} onChange={(e) => setBuyer(e.target.value)} className="w-full border border-[#c8922a]/40 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a7c3f]" /></div>
             <div><label className="block text-xs font-semibold text-[#3d2b1f] mb-1">Buyer Contact</label><input type="text" value={buyerContact} onChange={(e) => setBuyerContact(e.target.value)} className="w-full border border-[#c8922a]/40 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a7c3f]" /></div>
             <div><label className="block text-xs font-semibold text-[#3d2b1f] mb-1">Market / Location</label><input type="text" value={marketLocation} onChange={(e) => setMarketLocation(e.target.value)} className="w-full border border-[#c8922a]/40 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4a7c3f]" /></div>
@@ -1309,6 +1374,7 @@ export default function GroupDetailPage() {
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [poultryRecords, setPoultryRecords] = useState<PoultryFlockRecord[]>([]);
   const [breedingRecords, setBreedingRecords] = useState<BreedingRecord[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
 
   const tabParam = searchParams.get("tab") as TabId | null;
   const [activeTab, setActiveTab] = useState<TabId>(tabParam || "overview");
@@ -1381,6 +1447,17 @@ export default function GroupDetailPage() {
     localStorage.setItem(SALES_KEY, JSON.stringify([...others, ...updated]));
   }, [groupId]);
 
+  const saveGroup = useCallback((updated: LivestockGroup) => {
+    setGroup(updated);
+    const all: LivestockGroup[] = JSON.parse(localStorage.getItem(LIVESTOCK_KEY) || "[]");
+    localStorage.setItem(LIVESTOCK_KEY, JSON.stringify(all.map((g) => g.id === updated.id ? updated : g)));
+  }, []);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--color-farm-cream-dark)] flex items-center justify-center">
@@ -1400,8 +1477,8 @@ export default function GroupDetailPage() {
   const deceasedCount = animals.filter((a) => a.status === "deceased").length;
   const showIndividualHeadBreakdown = group.trackingMode === "individual" && animals.length > 0;
 
-  const statusLabel = group.status === "sold" ? "Sold Out" : group.status === "partial" ? "Partially Sold" : "Active";
-  const statusColor = group.status === "sold" ? "bg-gray-200 text-gray-600" : group.status === "partial" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-[#4a7c3f]";
+  const statusLabel = group.status === "sold" ? "Sold Out" : group.status === "partial" ? "Partially Sold" : group.status === "archived" ? "Archived" : "Active";
+  const statusColor = group.status === "sold" ? "bg-gray-200 text-gray-600" : group.status === "partial" ? "bg-amber-100 text-amber-700" : group.status === "archived" ? "bg-gray-300 text-gray-700" : "bg-green-100 text-[#4a7c3f]";
 
   const TABS: { id: TabId; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -1414,6 +1491,12 @@ export default function GroupDetailPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-farm-cream-dark)]">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#3d2b1f] text-white text-sm font-medium px-5 py-3 rounded-xl shadow-lg max-w-md text-center">
+          {toast}
+        </div>
+      )}
       {/* Header */}
       <header className="wood-texture shadow" style={{ backgroundColor: "var(--color-farm-brown)" }}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1457,18 +1540,32 @@ export default function GroupDetailPage() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="bg-amber-50 rounded-lg px-3 py-2">
-                <div className="text-sm font-bold text-[#c0392b]">{fmt(totalExpenses + group.totalValue)}</div>
-                <div className="text-xs text-gray-500">Total Invested</div>
-              </div>
-              <div className="bg-amber-50 rounded-lg px-3 py-2">
-                <div className="text-sm font-bold text-[#4a7c3f]">{fmt(totalIncome)}</div>
-                <div className="text-xs text-gray-500">Total Income</div>
-              </div>
-              <div className="bg-amber-50 rounded-lg px-3 py-2">
-                <div className={`text-sm font-bold ${netPnL >= 0 ? "text-[#4a7c3f]" : "text-[#c0392b]"}`}>{fmt(netPnL)}</div>
-                <div className="text-xs text-gray-500">Net P&amp;L</div>
+            <div className="flex flex-col gap-3 items-end">
+              {group.status === "archived" && (
+                <button
+                  onClick={() => {
+                    const updated = { ...group, status: "active" as const, updatedAt: new Date().toISOString() };
+                    saveGroup(updated);
+                    showToast("Group unarchived. You can now add expenses and record additional sales.");
+                  }}
+                  className="btn-rustic text-sm px-4 py-1.5"
+                >
+                  Unarchive Group
+                </button>
+              )}
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="bg-amber-50 rounded-lg px-3 py-2">
+                  <div className="text-sm font-bold text-[#c0392b]">{fmt(totalExpenses + group.totalValue)}</div>
+                  <div className="text-xs text-gray-500">Total Invested</div>
+                </div>
+                <div className="bg-amber-50 rounded-lg px-3 py-2">
+                  <div className="text-sm font-bold text-[#4a7c3f]">{fmt(totalIncome)}</div>
+                  <div className="text-xs text-gray-500">Total Income</div>
+                </div>
+                <div className="bg-amber-50 rounded-lg px-3 py-2">
+                  <div className={`text-sm font-bold ${netPnL >= 0 ? "text-[#4a7c3f]" : "text-[#c0392b]"}`}>{fmt(netPnL)}</div>
+                  <div className="text-xs text-gray-500">Net P&amp;L</div>
+                </div>
               </div>
             </div>
           </div>
@@ -1522,6 +1619,8 @@ export default function GroupDetailPage() {
             animals={animals}
             expenses={expenses}
             onSave={saveExpenses}
+            onGroupUpdate={saveGroup}
+            onShowToast={showToast}
             defaultOpen={tabParam === "expenses"}
           />
         )}
@@ -1532,6 +1631,8 @@ export default function GroupDetailPage() {
             sales={sales}
             onSave={saveSales}
             onAnimalsUpdate={saveAnimals}
+            onGroupUpdate={saveGroup}
+            onShowToast={showToast}
             defaultOpen={tabParam === "sales"}
           />
         )}

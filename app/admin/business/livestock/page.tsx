@@ -38,7 +38,7 @@ interface LivestockGroup {
   totalHeadCount: number;
   totalValue: number;
   avgPricePerHead: number;
-  status?: "active" | "sold" | "partial" | "closed";
+  status?: "active" | "sold" | "partial" | "closed" | "archived";
   trackingMode?: "individual" | "flock";
   createdAt: string;
   updatedAt: string;
@@ -668,8 +668,8 @@ function GroupCard({ group, expenses, sales, onEdit, onDelete }: GroupCardProps)
   const totalIncome = sales.filter((s) => s.isActual).reduce((s, r) => s + r.totalAmount, 0);
   const netPnL = totalIncome - totalExpenses - group.totalValue;
 
-  const statusLabel = group.status === "sold" ? "Sold Out" : group.status === "partial" ? "Partially Sold" : "Active";
-  const statusColor = group.status === "sold" ? "bg-gray-200 text-gray-600" : group.status === "partial" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-[#4a7c3f]";
+  const statusLabel = group.status === "sold" ? "Sold Out" : group.status === "partial" ? "Partial" : group.status === "archived" ? "Archived" : "Active";
+  const statusColor = group.status === "sold" ? "bg-gray-200 text-gray-600" : group.status === "partial" ? "bg-amber-100 text-amber-700" : group.status === "archived" ? "bg-gray-300 text-gray-700" : "bg-green-100 text-[#4a7c3f]";
 
   return (
     <div className="card-rustic p-5 flex flex-col gap-3">
@@ -823,6 +823,7 @@ export default function LivestockManagerPage() {
   const [expenses, setExpenses] = useState<GroupExpense[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [filterTab, setFilterTab] = useState<FilterTab>("All");
+  const [showArchived, setShowArchived] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LivestockGroup | null>(null);
 
@@ -1100,10 +1101,16 @@ export default function LivestockManagerPage() {
   };
 
   // ── Filtered groups ──
+  const activeGroups = groups.filter((g) => g.status !== "archived");
+  const archivedGroups = groups.filter((g) => g.status === "archived");
   const filteredGroups =
     filterTab === "All"
-      ? groups
-      : groups.filter((g) => g.category === filterTab);
+      ? activeGroups
+      : activeGroups.filter((g) => g.category === filterTab);
+  const filteredArchivedGroups =
+    filterTab === "All"
+      ? archivedGroups
+      : archivedGroups.filter((g) => g.category === filterTab);
 
   if (loading) {
     return (
@@ -1190,7 +1197,7 @@ export default function LivestockManagerPage() {
         </div>
 
         {/* ── Group Cards Grid ── */}
-        {filteredGroups.length === 0 ? (
+        {filteredGroups.length === 0 && filteredArchivedGroups.length === 0 ? (
           <div className="card-rustic p-12 text-center">
             <div className="text-5xl mb-4">🐾</div>
             <h2
@@ -1209,18 +1216,49 @@ export default function LivestockManagerPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredGroups.map((group) => (
-              <GroupCard
-                key={group.id}
-                group={group}
-                expenses={expenses.filter((e) => e.groupId === group.id)}
-                sales={sales.filter((s) => s.groupId === group.id)}
-                onEdit={openEditGroup}
-                onDelete={deleteGroup}
-              />
-            ))}
-          </div>
+          <>
+            {filteredGroups.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredGroups.map((group) => (
+                  <GroupCard
+                    key={group.id}
+                    group={group}
+                    expenses={expenses.filter((e) => e.groupId === group.id)}
+                    sales={sales.filter((s) => s.groupId === group.id)}
+                    onEdit={openEditGroup}
+                    onDelete={deleteGroup}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Archived toggle + section */}
+            {filteredArchivedGroups.length > 0 && (
+              <div className="mt-8">
+                <button
+                  onClick={() => setShowArchived((v) => !v)}
+                  className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-700 transition-colors mb-4"
+                >
+                  <span>{showArchived ? "▾" : "▸"}</span>
+                  Show Archived ({filteredArchivedGroups.length})
+                </button>
+                {showArchived && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 opacity-60">
+                    {filteredArchivedGroups.map((group) => (
+                      <GroupCard
+                        key={group.id}
+                        group={group}
+                        expenses={expenses.filter((e) => e.groupId === group.id)}
+                        sales={sales.filter((s) => s.groupId === group.id)}
+                        onEdit={openEditGroup}
+                        onDelete={deleteGroup}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 
