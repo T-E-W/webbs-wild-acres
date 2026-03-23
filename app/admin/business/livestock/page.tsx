@@ -8,6 +8,8 @@ import Link from "next/link";
 
 const AUTH_KEY = "wwa_admin_token";
 const LIVESTOCK_KEY = "wwa_livestock_groups";
+const EXPENSES_KEY = "wwa_group_expenses";
+const SALES_KEY = "wwa_sale_records";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,8 +38,24 @@ interface LivestockGroup {
   totalHeadCount: number;
   totalValue: number;
   avgPricePerHead: number;
+  status?: "active" | "sold" | "partial" | "closed";
+  trackingMode?: "individual" | "flock";
   createdAt: string;
   updatedAt: string;
+}
+
+interface GroupExpense {
+  id: string;
+  groupId: string;
+  amount: number;
+  isActual: boolean;
+}
+
+interface SaleRecord {
+  id: string;
+  groupId: string;
+  totalAmount: number;
+  isActual: boolean;
 }
 
 type FilterTab = "All" | "Ovine" | "Bovine" | "Avian" | "Caprine" | "Porcine" | "Equine" | "Lagomorph";
@@ -637,12 +655,21 @@ function Step4Review({ group, priceLines, pricingMode }: Step4Props) {
 
 interface GroupCardProps {
   group: LivestockGroup;
+  expenses: GroupExpense[];
+  sales: SaleRecord[];
   onEdit: (group: LivestockGroup) => void;
   onDelete: (id: string) => void;
 }
 
-function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
+function GroupCard({ group, expenses, sales, onEdit, onDelete }: GroupCardProps) {
   const multipleClasses = group.priceLines.length > 1;
+
+  const totalExpenses = expenses.filter((e) => e.isActual).reduce((s, e) => s + e.amount, 0);
+  const totalIncome = sales.filter((s) => s.isActual).reduce((s, r) => s + r.totalAmount, 0);
+  const netPnL = totalIncome - totalExpenses - group.totalValue;
+
+  const statusLabel = group.status === "sold" ? "Sold Out" : group.status === "partial" ? "Partially Sold" : "Active";
+  const statusColor = group.status === "sold" ? "bg-gray-200 text-gray-600" : group.status === "partial" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-[#4a7c3f]";
 
   return (
     <div className="card-rustic p-5 flex flex-col gap-3">
@@ -657,7 +684,8 @@ function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
             <div className="text-xs text-gray-500">{group.acquisitionDate ? `Acquired ${group.acquisitionDate}` : ""}</div>
           </div>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 items-center">
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor}`}>{statusLabel}</span>
           <button
             onClick={() => onEdit(group)}
             className="p-1.5 rounded hover:bg-amber-50 text-[#c8922a] hover:text-[#3d2b1f] transition-colors text-sm"
@@ -737,10 +765,50 @@ function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
         )}
       </div>
 
-      {/* Total value */}
-      <div className="flex items-center justify-between border-t border-[#c8922a]/20 pt-2">
-        <span className="text-xs text-gray-500 uppercase tracking-wide">Group Value</span>
-        <span className="font-bold text-[#4a7c3f] text-lg">{fmt(group.totalValue)}</span>
+      {/* Total value + P&L */}
+      <div className="space-y-1 border-t border-[#c8922a]/20 pt-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-500 uppercase tracking-wide">Acquisition Value</span>
+          <span className="font-bold text-[#4a7c3f] text-base">{fmt(group.totalValue)}</span>
+        </div>
+        {(totalExpenses > 0 || totalIncome > 0) && (
+          <>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-500">Expenses</span>
+              <span className="text-[#c0392b] font-medium">−{fmt(totalExpenses)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-500">Income</span>
+              <span className="text-[#4a7c3f] font-medium">+{fmt(totalIncome)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm border-t border-[#c8922a]/10 pt-1">
+              <span className="font-semibold text-[#3d2b1f]">Net P&amp;L</span>
+              <span className={`font-bold ${netPnL >= 0 ? "text-[#4a7c3f]" : "text-[#c0392b]"}`}>{fmt(netPnL)}</span>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="flex gap-2 pt-1">
+        <Link
+          href={`/admin/business/livestock/${group.id}`}
+          className="flex-1 text-center text-xs font-semibold bg-[#4a7c3f] text-white px-3 py-1.5 rounded-lg hover:bg-[#3d6835] transition-colors"
+        >
+          View Details
+        </Link>
+        <Link
+          href={`/admin/business/livestock/${group.id}?tab=expenses`}
+          className="flex-1 text-center text-xs font-semibold bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg hover:bg-amber-200 transition-colors"
+        >
+          Log Expense
+        </Link>
+        <Link
+          href={`/admin/business/livestock/${group.id}?tab=sales`}
+          className="flex-1 text-center text-xs font-semibold bg-[#3d2b1f]/10 text-[#3d2b1f] px-3 py-1.5 rounded-lg hover:bg-[#3d2b1f]/20 transition-colors"
+        >
+          Record Sale
+        </Link>
       </div>
     </div>
   );
@@ -752,6 +820,8 @@ export default function LivestockManagerPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<LivestockGroup[]>([]);
+  const [expenses, setExpenses] = useState<GroupExpense[]>([]);
+  const [sales, setSales] = useState<SaleRecord[]>([]);
   const [filterTab, setFilterTab] = useState<FilterTab>("All");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LivestockGroup | null>(null);
@@ -778,9 +848,15 @@ export default function LivestockManagerPage() {
     }
     const raw = localStorage.getItem(LIVESTOCK_KEY);
     if (raw) {
-      try {
-        setGroups(JSON.parse(raw));
-      } catch { /* ignore */ }
+      try { setGroups(JSON.parse(raw)); } catch { /* ignore */ }
+    }
+    const rawExp = localStorage.getItem(EXPENSES_KEY);
+    if (rawExp) {
+      try { setExpenses(JSON.parse(rawExp)); } catch { /* ignore */ }
+    }
+    const rawSales = localStorage.getItem(SALES_KEY);
+    if (rawSales) {
+      try { setSales(JSON.parse(rawSales)); } catch { /* ignore */ }
     }
     setLoading(false);
   }, [router]);
@@ -1135,7 +1211,14 @@ export default function LivestockManagerPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredGroups.map((group) => (
-              <GroupCard key={group.id} group={group} onEdit={openEditGroup} onDelete={deleteGroup} />
+              <GroupCard
+                key={group.id}
+                group={group}
+                expenses={expenses.filter((e) => e.groupId === group.id)}
+                sales={sales.filter((s) => s.groupId === group.id)}
+                onEdit={openEditGroup}
+                onDelete={deleteGroup}
+              />
             ))}
           </div>
         )}
