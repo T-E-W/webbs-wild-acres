@@ -134,6 +134,36 @@ export default function AdminDashboardPage() {
           </Link>
         </div>
 
+        {/* Business Center Card */}
+        <div className="mb-8">
+          <Link
+            href="/admin/business"
+            className="card-rustic p-6 flex items-center gap-5 hover:shadow-lg transition-shadow group block"
+          >
+            <span className="text-4xl">💼</span>
+            <div className="flex-1">
+              <h2
+                className="text-xl font-bold text-[var(--color-farm-brown)] group-hover:text-[var(--color-farm-green)] transition-colors"
+                style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
+              >
+                Business Center
+              </h2>
+              <p
+                className="text-sm text-[var(--color-farm-brown-dark)] mt-0.5"
+                style={{ fontFamily: "var(--font-lato), Georgia, serif" }}
+              >
+                Sheep Tracker, expenses, income, USDA market prices &amp; profit analysis
+              </p>
+            </div>
+            <span
+              className="text-[var(--color-farm-green)] font-bold text-sm uppercase tracking-wider group-hover:translate-x-1 transition-transform"
+              style={{ fontFamily: "var(--font-lato), Georgia, serif" }}
+            >
+              Open →
+            </span>
+          </Link>
+        </div>
+
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {[
